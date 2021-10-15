@@ -1,0 +1,264 @@
+---
+title: "Second day"
+author: "Manuel"
+date: "10/15/2021"
+output: pdf_document
+---
+#Memory usage
+The type of object that you use makes a difference in the space and memory usage
+
+Instead of a 100x100 matrix with almost 10,000 zeros, use a sparse representation.
+
+-rows and column names take space too!
+-avoid repeated entries
+
+###Clever bits
+An object repeated ten times doesn't use ten times the memory of what the object itself takes.
+R recognizes that it is the same object so instead of allocating ten times that memory, it just uses a bit more of memory to create a pointer for such an object, so it recognizes it. But if you change a single thing, then it will no loger be recognized as that object. Write functions in a "memory efficient" way.
+
+R gets rid of the non-used information by "garbage collection" "gc", which you actually don't need to use, because R does it internally.
+```{r}
+gc()
+```
+##Avoid cluttered workspaces
+Dont like cleaning? --> save your code in R scripts and run your R script in a clean environment.
+
+##Data too big?
+Don't keep all data in memory at the same time
+-work on a subset at a time
+-keep data on disk:bigmemory
+-keep data in a database
+
+>Instead of using all the data to calculate, for example a T test, you can just give the 6 relevant numbers for this test and you'll get to the same result, saving a huge amount of data.
+
+##Analysis for big data sets
+The biglm package creates a linear model that you can create "chunk" by "chunk". So you build your model bit by bit, without having to do that in a single go and getting the same results. In this way, data sets larger than memory can be handled! You have control ove it as well.
+
+```{r}
+library(data.table)
+input <- "https://raw.githubusercontent.com/Rdatatable/data.table/master/vignettes/flights14.csv"
+flights <- fread(input)
+head(flights,5)
+typeof(flights)
+dfflights <-as.data.frame(flights)
+dfflights
+dtflights <- data.table(flights)
+dtflights
+flights$origin
+
+
+library(bench)
+compare <- bench::mark(flights$origin["JFK"], dtflights$origin["JFK"])
+compare
+
+system.time(for (i in 1:1000) huhn <- flights[month%in% 2:3 & origin =="JFK",])
+
+```
+data.table is fast
+
+you can use "scale" when you have different types of data (bvb:minutes and hours)
+
+Conclusions:
+-Develop your scripts using small(but representative!) subsets.
+-Big data doesn't need to be a problem: the full flights data set is 12GB
+-You always pay a price, usually speed
+-Fight back using parallel processing!
+-There are many, many ways to achieve similar results
+
+
+#Big data, big data, big data
+
+-Super computers are super fast and you can run huge data sets
+Very expensive, you have to rewrite your code specifically for the supercomputer
+
+###Clusters
+
+pros:
+-High speed
+-Very large data sets
+-Easier to use, less rewrites
+-Job management software
+
+cons:
+-Very expensive
+-Only suitable for computer centers
+-Not much expertise available
+
+
+##CUDA & OpenCL
+
+-Ex. GPGPU, mobile, small devices
+Pros:
+-Very cheap
+-High speed
+-Large datasets
+-Integrated with Matlab, Gimp, R, Photoshop, etc.
+
+Cons:
+-Rewrites of software
+-Learning curve
+
+Streaming data is not only fast, but also memory efficient.
+
+Whatever you do you have to consider your bottlnecks and the characteristics of your data, as well as your requirements.
+
+Analyze which parts of your code are the most memory and time costly, maybe you can optimize a particular one and that will boost your code significantly without having to optimize the whole code.
+
+Did somebody else solve this problem? you don't need to reinvent the wheel!
+
+When using if(1 and 2) Put the fast check first and then the slow one.
+
+```{r}
+a <- rnorm(100)
+library(parallel)
+library(snow)
+cores <- detectCores()
+cores
+
+myList <- 1:100
+
+unlist(mclapply(myList,sqrt,mc.cores = cores))[1:4]
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##Parallel computing
+
+```{r}
+install.packages("Rmpi")
+require(Rmpi)
+
+cl <- makeCluster(getOption("cl.cores", cores))
+
+nList <- 1:100
+N <- 10000
+myRandom <- function(nlist, N){
+  return(rnorm(N))
+}
+
+timming <- proc.time()
+distributions <- parLapply(cl, nList,
+                           myRandom, N)
+
+```
+```{r}
+library(doParallel)
+registerDoParallel()
+
+foreach(i=1:3) %do% sqrt(i)
+
+foreach(i=1:3) %dopar% sqrt(i)
+
+foreach(i=1:3, .combine = 'c') %do% exp(i)
+
+compare <- bench::mark(foreach(i=1:3) %do% sqrt(i), foreach(i=1:3) %dopar% sqrt(i))
+
+compare
+
+```
+##Excercise
+Take the normal distributions:
+
+```{r}
+library(doParallel)
+registerDoParallel()
+nList <- 1:100
+N <- 1000000
+
+myRandom <- function(nList, N){
+  return(rnorm(N))
+} 
+
+distributions <- lapply(nList, myRandom, N)
+
+N <- 400000
+log2(N)
+```
+Machine learning and Big Data
+
+Machine learning can be used for "Giving computers the ability to learn without being explicitly programmed"
+
+Machine learning is a part of artificial intelligence
+We have supervised and unupervised ML
+
+Importan--> spend a lot of time looking at your data
+```{r}
+library(ggplot2)
+library(ggbeeswarm)
+library(bench)
+library(knitr)
+library(doParallel)
+library(GGally)
+library(numbers)
+library(parallel)
+library(plot3D)
+library(randomForest)
+library(rgl)
+library(Rmpi)
+library(rpart)
+library(rpart.plot)
+library(snow)
+library(dplyr)
+library(tidyverse)
+library(hablar)
+```
+
+
+```{r}
+capsicumPhenotypes <- read.csv("C:/Users/Brend/Desktop/Reproducibility/R-big-data/capsicumPhenotypes.csv")
+head(capsicumPhenotypes,5)
+library(ggplot2)
+set.seed(123)
+
+capsicumPhenotypes <- capsicumPhenotypes %>% convert(fct(Genotype))
+s <- sample(nrow(capsicumPhenotypes), 0.9 * nrow(capsicumPhenotypes))
+train <- capsicumPhenotypes[s,]
+test <- capsicumPhenotypes[-s,]
+
+ggpairs(capsicumPhenotypes[capsicumPhenotypes[,15]== c('cgn16951', 'sweet banana', 'Tequila'),], aes(color= Genotype), columns = c(2,11,13))
+
+
+```
+```{r}
+fit <- rpart(Genotype  ~ height + digital_biomass + greenness_aver,
+             method = 'class', data = capsicumPhenotypes)
+prp(fit, uniform=TRUE, main='Classification Tree', extra = 101)
+```
+```{r}
+model <- randomForest(Genotype ~ . -timestamp, data = train)
+model
+```
+```{r}
+pred <- predict(model, newdata = test)
+table(pred, test$Genotype)
+```
+```{r}
+a <- as.data.frame(table(pred, test$Genotype))
+(sum(a[a$pred == a$Var2,]$Freq))/sum(a$Freq)
+```
+```{r}
+model1000 <- randomForest(Genotype ~ . -timestamp, data = train, ntree= 1000)
+model1000
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
